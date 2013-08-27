@@ -1,0 +1,57 @@
+#!/usr/bin/expect -f
+#Author: g0 2010 , https://ipduh.com/contact
+#License:Same as Expect - Public Domain
+#revtun sets up a reverse ssh tunnel  
+#http://alog.ipduh.com/2012/08/reverse-ssh-tunnel-tool-revtun.html
+#ssh example: ssh -R 1025:localhost:22 -p 443 user@192.0.2.123 -fN
+#Hardcode the arguments or pass them at this order on the command line
+#eg:$revtun 1025 22 443 user 192.0.2.123 password http://kod.ipduh.com
+
+set remoteport "1025"
+set localport "22"
+set port "443"
+set user "user"
+set host "192.0.2.123"
+set password "password"
+set report_to "http://kod.ipduh.com" 
+
+if {$argc > 0} { set remoteport [lindex $argv 0] }
+if {$argc > 1} { set localport [lindex $argv 1] }
+if {$argc > 2} { set port [lindex $argv 2] }
+if {$argc > 3} { set user [lindex $argv 3] }
+if {$argc > 4} { set host [lindex $argv 4] }
+if {$argc > 5} { set password [lindex $argv 5] }
+if {$argc > 6} { set report_to [lindex $argv 6] }
+
+set message "m"
+
+set timeout 10
+set pid [spawn ssh -R $remoteport:localhost:$localport -p $port -l $user $host -fN]
+while {1} {
+
+        expect -nocase -re ".*yes/no?.*" {
+                send "yes\r"
+        } -nocase -re "password*" {
+                send -- "$password\r\n"
+                #send -- "\n"
+        } -re "(%|\\\$|#) " {
+                set message "$message-prompt"
+                break
+        } eof {
+                set message "$message-eof"
+                break
+        } -re "incorrect|invalid" {
+                set message "$message-incorrect"
+                break
+        } -nocase -re ".*Warning.*" {
+                set message "$message-warning"
+                break
+        } timeout {
+                set message "$message-timeout"
+                break
+        }
+
+}
+
+set user "$env(USER)"
+exec curl $report_to?$user-$message --silent >/dev/null
